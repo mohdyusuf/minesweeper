@@ -129,15 +129,21 @@ public:
                     continue;
                 }
                 else if (m >= 0 && n >= 0 && m < height && n < width){
-                    if (field.grid[m][n] == MINE && field.status[m][n] != FLAGGED) {
-                        cout << "Perfect=false" << endl;
+                    if ((field.grid[m][n] == MINE && field.status[m][n] != FLAGGED) || (field.grid[m][n] != MINE && field.status[m][n] == FLAGGED)) {
                         return false;
                     }
                 }
             }
         }
-        cout << "Perfect=true" << endl;
         return true;
+    }
+
+    // returns true when [x,y] is adjacent to [x_center, y_center]
+    bool isAdjacentTiles(int x, int y, int x_center, int y_center) {
+        if (x >= (x_center-1) && x <= (x_center+1) && y >= (y_center-1) && y <= (y_center+1)) {
+            return true;
+        }
+        return false;
     }
 
     int getGrid(int x, int y) {
@@ -164,19 +170,13 @@ public:
             field.status[y][x] = action;
             if (field.grid[y][x] == MINE && action == REVEALED) {
                 setGameEnd();
-                for (i = 0; i < height; i++) {
-                    for (j = 0; j < width; j++) {
-                        if (field.grid[i][j] == MINE) {
-                            field.status[i][j] = REVEALED;
-                        }
-                    }
-                }
             }
             if (field.grid[y][x] == 0 && action == REVEALED) {
                 clearEmptySection(x, y);
             }
         }
-        else {  // now we are doing the peek thing / check adjacent tiles
+        else {
+            // now we are doing the peek thing / check adjacent tiles
             if (isAdjacentPerfect(x, y)) {
                 for (i = y-1; i <= y+1; i++) {
                     for (j = x-1; j <= x+1; j++) {
@@ -190,6 +190,21 @@ public:
                                 if (field.grid[i][j] == 0) {
                                     clearEmptySection(j, i);
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+            else {
+                for (i = y-1; i <= y+1; i++) {
+                    for (j = x-1; j <= x+1; j++) {
+                        if (i == y && j == x) {
+                            continue;
+                        }
+                        else if (i >= 0 && j >= 0 && i < height && j < width) {
+                            // consider which tile that hasnt been turned
+                            if (field.status[i][j] == FLAGGED && field.grid[i][j] != MINE) {
+                                setGameEnd();
                             }
                         }
                     }
@@ -231,8 +246,18 @@ public:
     }
 
     void setGameEnd() {
+        int i = 0;
+        int j = 0;
         // TODO: stop timer
         gameStatus = GAME_END;
+
+        for (i = 0; i < height; i++) {
+            for (j = 0; j < width; j++) {
+                if (field.grid[i][j] == MINE) {
+                    field.status[i][j] = REVEALED;
+                }
+            }
+        }
     }
 
     void printGrid() {
@@ -282,7 +307,7 @@ class OlcFramework : public olc::PixelGameEngine {
             decalRatio = (float)(1.0 / 16.0);   // sprites are 16x16
 
             mineField.init(ScreenWidth(), ScreenHeight());
-            mineField.printGrid();
+            // mineField.printGrid();
             
             sprites[0] = make_unique<Sprite>("./sprites/empty.png");
             sprites[1] = make_unique<Sprite>("./sprites/one.png");
@@ -330,7 +355,18 @@ class OlcFramework : public olc::PixelGameEngine {
             Clear(olc::BLACK);
             for (int x = 0; x < ScreenWidth(); x++) {
                 for (int y = 0; y < ScreenHeight(); y++) {
-                    if (mineField.getGrid(x, y) <= MINE) {
+                    if (GetMouse(0).bHeld && mineField.isAdjacentTiles(x, y, GetMouseX(), GetMouseY()) && \
+                        mineField.getGrid(GetMouseX(), GetMouseY()) != 11 && \
+                        mineField.gameStatus == GAME_RUNNING) {
+                        // when mouse held, we make hidden tiles 'empty'
+                        if (mineField.getGrid(x, y) == 11) {
+                            DrawDecal({(float)x, float(y)}, decals[0].get(), {decalRatio, decalRatio});
+                        }
+                        else {
+                            DrawDecal({(float)x, float(y)}, decals[mineField.getGrid(x, y)].get(), {decalRatio, decalRatio});
+                        }
+                    }
+                    else if (mineField.getGrid(x, y) <= MINE) {
                         DrawDecal({(float)x, float(y)}, decals[mineField.getGrid(x, y)].get(), {decalRatio, decalRatio});
                     }
                     else if (mineField.getGrid(x, y) == 10) {
